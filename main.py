@@ -29,11 +29,18 @@ else:
 class Game:
     def __init__(self) -> None:
         pygame.init()
+        pygame.mixer.init()  # Initialize the sound system
         self.screen = pygame.display.set_mode((WIDTH, HEIGHT))
         pygame.display.set_caption("Trade of Life")
         self.clock = pygame.time.Clock()
         self.font_cache = {}
+        self.setup_audio()
         self.reset_game()
+        
+    def setup_audio(self) -> None:
+        pygame.mixer.music.load('assets/music/background.mp3')
+        pygame.mixer.music.set_volume(0.5)
+        pygame.mixer.music.play(-1)
 
     def get_font(self, size: int) -> pygame.font.Font:
         if size not in self.font_cache:
@@ -93,13 +100,17 @@ class Game:
     def toggle_game_state(self) -> None:
         if self.state == "waiting":
             self.state = "playing"
+            pygame.mixer.music.unpause()  # Resume music
         elif self.state == "playing":
             self.state = "paused"
+            pygame.mixer.music.pause()  # Pause music
         elif self.state == "paused":
             self.state = "playing"
+            pygame.mixer.music.unpause()  # Resume music
         elif self.state == "game_over":
             self.reset_game()
             self.state = "playing"
+            pygame.mixer.music.play(-1)  # Restart music
 
     def spawn_item(self, fall_speed: float, item_size: int) -> None:
         is_good = random.random() < max(0.4, 0.7 - self.player.score / 500)
@@ -186,6 +197,8 @@ class Game:
             self.draw()
             pygame.display.flip()
 
+        pygame.mixer.music.stop()  # Stop music before quitting
+        pygame.mixer.quit()
         pygame.quit()
         sys.exit()
 
