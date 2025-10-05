@@ -39,7 +39,7 @@ class Game:
     def setup_audio(self) -> None:
 
         pygame.mixer.music.load('assets/music/background.mp3')
-        pygame.mixer.music.set_volume(0.8)
+        pygame.mixer.music.set_volume(1)
         pygame.mixer.music.play(-1)
             
         self.sounds = {
