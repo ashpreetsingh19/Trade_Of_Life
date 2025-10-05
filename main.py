@@ -2,24 +2,23 @@ import sys
 import random
 import pygame
 import json
+import numpy
 from typing import Optional
 import importlib.util
 
-# Try to import from local modules, create them if they don't exist
 if importlib.util.find_spec("config") is None:
     from config import *
 else:
-    # Constants
+
     WIDTH, HEIGHT = 800, 600
     FPS = 60
     MAX_HP = 100
     ITEM_SPAWN_INTERVAL = 50
-    HP_DRAIN_RATE = 0.5 / 10  # lose 0.5 HP every 10 seconds smoothly
+    HP_DRAIN_RATE = 0.5 / 10
     PLAYER_SPEED = 7
     PLATFORM_DEFAULT_WIDTH = 150
     PLATFORM_HEIGHT = 20
 
-    # Colors
     BG_COLOR = (20, 22, 30)
     PLAYER_COLOR = (120, 180, 255)
     ITEM_GREEN = (0, 255, 120)
@@ -29,7 +28,7 @@ else:
 class Game:
     def __init__(self) -> None:
         pygame.init()
-        pygame.mixer.init()  # Initialize the sound system
+        pygame.mixer.init()
         self.screen = pygame.display.set_mode((WIDTH, HEIGHT))
         pygame.display.set_caption("Trade of Life")
         self.clock = pygame.time.Clock()
@@ -38,9 +37,28 @@ class Game:
         self.reset_game()
         
     def setup_audio(self) -> None:
+
         pygame.mixer.music.load('assets/music/background.mp3')
-        pygame.mixer.music.set_volume(0.5)
+        pygame.mixer.music.set_volume(0.8)
         pygame.mixer.music.play(-1)
+            
+        self.sounds = {
+            'good_item': self.create_beep_sound(700, 100),
+            'bad_item': self.create_beep_sound(400, 100)
+        }
+
+    def create_beep_sound(self, frequency: int, duration: int) -> pygame.mixer.Sound:
+        sample_rate = 44100
+        samples = int(duration * sample_rate / 1000) 
+
+        buf = numpy.zeros((samples, 2), dtype=numpy.int16)
+        max_sample = 2**(16 - 1) - 1
+        for i in range(samples):
+            t = float(i) / sample_rate
+            buf[i][0] = int(max_sample * numpy.sin(2.0 * numpy.pi * frequency * t))
+            buf[i][1] = buf[i][0]
+
+        return pygame.mixer.Sound(buffer=buf)
 
     def get_font(self, size: int) -> pygame.font.Font:
         if size not in self.font_cache:
@@ -100,17 +118,17 @@ class Game:
     def toggle_game_state(self) -> None:
         if self.state == "waiting":
             self.state = "playing"
-            pygame.mixer.music.unpause()  # Resume music
+            pygame.mixer.music.unpause()
         elif self.state == "playing":
             self.state = "paused"
-            pygame.mixer.music.pause()  # Pause music
+            pygame.mixer.music.pause()
         elif self.state == "paused":
             self.state = "playing"
-            pygame.mixer.music.unpause()  # Resume music
+            pygame.mixer.music.unpause()
         elif self.state == "game_over":
             self.reset_game()
             self.state = "playing"
-            pygame.mixer.music.play(-1)  # Restart music
+            pygame.mixer.music.play(-1)
 
     def spawn_item(self, fall_speed: float, item_size: int) -> None:
         is_good = random.random() < max(0.4, 0.7 - self.player.score / 500)
@@ -125,22 +143,18 @@ class Game:
         keys = pygame.key.get_pressed()
         self.player.move(keys)
 
-        # Smooth HP drain
         self.player.hp -= HP_DRAIN_RATE * dt * FPS
         self.player.hp = max(0, self.player.hp)
 
-        # Dynamic difficulty
         fall_speed = 4 + self.player.score // 50
         spawn_interval = max(15, ITEM_SPAWN_INTERVAL - self.player.score // 20)
         item_size = max(15, 30 - self.player.score // 100)
 
-        # Spawn items
         self.spawn_counter += 1
         if self.spawn_counter >= spawn_interval:
             self.spawn_counter = 0
             self.spawn_item(fall_speed, item_size)
 
-        # Update & check collisions
         self.items.update()
         self.handle_collisions()
 
@@ -153,12 +167,14 @@ class Game:
             if item.color == ITEM_GREEN:
                 self.player.hp = min(MAX_HP, self.player.hp + 5)
                 self.player.score += 10
-                if self.player.resize(self.player.width - 10):  # Shrink
+                self.sounds['good_item'].play()
+                if self.player.resize(self.player.width - 10):
                     self.state = "game_over"
                     self.high_score = self.save_high_score(self.player.score)
             else:
                 self.player.hp = max(0, self.player.hp - 5)
-                if self.player.resize(self.player.width + 10):  # Expand
+                self.sounds['bad_item'].play()
+                if self.player.resize(self.player.width + 10):
                     self.state = "game_over"
                     self.high_score = self.save_high_score(self.player.score)
 
@@ -197,7 +213,7 @@ class Game:
             self.draw()
             pygame.display.flip()
 
-        pygame.mixer.music.stop()  # Stop music before quitting
+        pygame.mixer.music.stop()
         pygame.mixer.quit()
         pygame.quit()
         sys.exit()
@@ -221,9 +237,9 @@ class Player(pygame.sprite.Sprite):
         self.rect.x = max(0, min(WIDTH - self.rect.width, self.rect.x))
 
     def resize(self, new_width: int) -> bool:
-        test_width = max(0, min(300, new_width))  # Test the new width
-        if test_width == 0:  # If width would be 0, end the game
-            self.hp = 0  # Set HP to 0 to trigger game over
+        test_width = max(0, min(300, new_width))
+        if test_width == 0:
+            self.hp = 0
             return True
             
         self.width = max(5, min(300, new_width))  # Actual limits for visual
